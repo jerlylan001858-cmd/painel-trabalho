@@ -1097,6 +1097,7 @@ function Calendario({ store }) {
     status: "pendente",
   });
   const [editandoId, setEditandoId] = useState(null);
+  const [eventoSelecionado, setEventoSelecionado] = useState(null);
 
   function limpar() {
     setForm({ titulo: "", descricao: "", data_inicio: hojeInput(), data_fim: "", lembrete_minutos: 30, status: "pendente" });
@@ -1161,14 +1162,40 @@ function Calendario({ store }) {
           </div>
         </form>
 
-        <div className="panel calendar-panel">
+                <div className="panel calendar-panel">
           <FullCalendar
             plugins={[dayGridPlugin, interactionPlugin]}
             initialView="dayGridMonth"
             locale="pt-br"
             events={eventosCalendario}
             height="auto"
+            eventClick={(info) => {
+              const evento = store.dados.find((item) => String(item.id) === String(info.event.id));
+              setEventoSelecionado(evento || null);
+            }}
           />
+
+          {eventoSelecionado && (
+            <div className="evento-detalhe">
+              <div>
+                <h3>{eventoSelecionado.titulo}</h3>
+                <p>{eventoSelecionado.descricao || "Sem descrição"}</p>
+                <small>
+                  Data: {formatarData(eventoSelecionado.data_inicio)}
+                  {eventoSelecionado.lembrete_minutos ? ` • lembrete ${eventoSelecionado.lembrete_minutos} min antes` : ""}
+                </small>
+              </div>
+
+              <div className="botoes esquerda">
+                <button className="btn" type="button" onClick={() => editar(eventoSelecionado)}>
+                  Editar evento
+                </button>
+                <button className="btn danger" type="button" onClick={() => setEventoSelecionado(null)}>
+                  Fechar
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
