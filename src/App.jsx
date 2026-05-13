@@ -15,8 +15,23 @@ const menuItems = [
   { id: "calendario", label: "Calendário", icon: "📅" },
   { id: "eventos", label: "Eventos", icon: "📌" },
   { id: "timer", label: "Timer", icon: "⏱️" },
+  { id: "perfil", label: "Perfil", icon: "😺" },
   { id: "config", label: "Configurações", icon: "⚙️" },
 ];
+
+const avatarOptions = [
+  { id: "avatar1", nome: "Gatinho curioso", src: "/avatars/avatar1.jpeg" },
+  { id: "avatar2", nome: "Gato headset", src: "/avatars/avatar2.jpeg" },
+  { id: "avatar3", nome: "Gato executivo", src: "/avatars/avatar3.jpeg" },
+  { id: "avatar4", nome: "Cachorro elegante", src: "/avatars/avatar4.jpeg" },
+  { id: "avatar5", nome: "Gato de óculos", src: "/avatars/avatar5.jpeg" },
+  { id: "avatar6", nome: "Gatinho escritório", src: "/avatars/avatar6.jpeg" },
+];
+
+function avatarUsuario(usuario) {
+  return usuario?.user_metadata?.avatar || usuario?.avatar || avatarOptions[0].src;
+}
+
 
 function pad(numero) {
   return String(numero).padStart(2, "0");
@@ -288,6 +303,7 @@ function useConfigCompartilhada(usuario) {
     recarregarConfig: carregar,
   };
 }
+
 function Login({ onLogin }) {
   const [nome, setNome] = useState("Jerlylan");
   const [email, setEmail] = useState("admin@teste.com");
@@ -304,7 +320,7 @@ function Login({ onLogin }) {
         ? await supabase.auth.signUp({
             email,
             password: senha,
-            options: { data: { nome } },
+            options: { data: { nome, avatar: avatarOptions[0].src } },
           })
         : await supabase.auth.signInWithPassword({ email, password: senha });
 
@@ -397,6 +413,7 @@ function Layout({ usuario, onLogout, pagina, setPagina, children }) {
         </nav>
 
         <div className="user-box">
+          <img className="avatar-mini" src={avatarUsuario(usuario)} alt="Avatar do usuário" />
           <p>Logado como:</p>
           <strong>{nomeUsuario(usuario)}</strong>
           <small>{usuario?.email}</small>
@@ -419,8 +436,11 @@ function Header({ titulo, subtitulo, usuario }) {
 
       {usuario && (
         <div className="top-user">
-          <span>Usuário logado</span>
-          <strong>{nomeUsuario(usuario)}</strong>
+          <img className="avatar-top" src={avatarUsuario(usuario)} alt="Avatar do usuário" />
+          <div>
+            <span>Usuário logado</span>
+            <strong>{nomeUsuario(usuario)}</strong>
+          </div>
         </div>
       )}
     </header>
@@ -1306,6 +1326,57 @@ function Timer({ registros }) {
   );
 }
 
+
+function Perfil({ usuario, onAtualizar }) {
+  const [nome, setNome] = useState(nomeUsuario(usuario));
+  const [avatar, setAvatar] = useState(avatarUsuario(usuario));
+
+  async function salvar(e) {
+    e.preventDefault();
+    await onAtualizar({ nome, avatar });
+  }
+
+  return (
+    <>
+      <Header titulo="Perfil" subtitulo="Escolha seu avatar. Essa escolha é individual para cada usuário." usuario={usuario} />
+
+      <section className="grid-2">
+        <form className="panel form-grid" onSubmit={salvar}>
+          <h2>Meu perfil</h2>
+
+          <label>Nome</label>
+          <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Seu nome" />
+
+          <h3>Escolha seu avatar</h3>
+          <div className="avatar-grid">
+            {avatarOptions.map((opcao) => (
+              <button
+                type="button"
+                key={opcao.id}
+                className={avatar === opcao.src ? "avatar-option active" : "avatar-option"}
+                onClick={() => setAvatar(opcao.src)}
+              >
+                <img src={opcao.src} alt={opcao.nome} />
+                <span>{opcao.nome}</span>
+              </button>
+            ))}
+          </div>
+
+          <button className="btn primary">Salvar perfil</button>
+        </form>
+
+        <div className="panel perfil-preview">
+          <h2>Prévia</h2>
+          <img className="avatar-preview" src={avatar} alt="Avatar escolhido" />
+          <h3>{nome || "Seu nome"}</h3>
+          <p className="hint">Esse avatar aparecerá no menu lateral e na tela inicial.</p>
+        </div>
+      </section>
+    </>
+  );
+}
+
+
 function Configuracoes({ config, salvarSheetUrl }) {
   const [valor, setValor] = useState(config.sheetUrl || "");
 
@@ -1389,6 +1460,28 @@ export default function App() {
     setUsuario(null);
   }
 
+  async function atualizarUsuarioPerfil({ nome, avatar }) {
+    if (supabaseEnabled && usuario?.id) {
+      const { data, error } = await supabase.auth.updateUser({
+        data: { nome, avatar },
+      });
+
+      if (error) {
+        alert("Erro ao salvar perfil: " + error.message);
+        return;
+      }
+
+      setUsuario(data.user);
+      alert("Perfil salvo!");
+      return;
+    }
+
+    const atualizado = { ...usuario, nome, avatar };
+    setUsuario(atualizado);
+    setLocal("usuario_demo", atualizado);
+    alert("Perfil salvo!");
+  }
+
   const conteudo = useMemo(() => {
     if (pagina === "inicio") {
       return (
@@ -1413,6 +1506,7 @@ export default function App() {
     if (pagina === "calendario") return <Calendario store={eventos} />;
     if (pagina === "eventos") return <Eventos store={registros} />;
     if (pagina === "timer") return <Timer registros={registros.dados} />;
+    if (pagina === "perfil") return <Perfil usuario={usuario} onAtualizar={atualizarUsuarioPerfil} />;
     if (pagina === "config") return <Configuracoes config={configStore.config} salvarSheetUrl={configStore.salvarSheetUrl} />;
     return null;
   }, [pagina, usuario, anotacoes.dados, frases.dados, links.dados, osnoc.dados, osabertas.dados, eventos.dados, registros.dados, configStore.config]);
