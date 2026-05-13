@@ -9,6 +9,7 @@ const menuItems = [
   { id: "anotacoes", label: "Anotações", icon: "📝" },
   { id: "frases", label: "Frases prontas", icon: "⚡" },
   { id: "osnoc", label: "OS NOC", icon: "🧾" },
+  { id: "osabertas", label: "OS abertas", icon: "📋" },
   { id: "links", label: "Links importantes", icon: "🔗" },
   { id: "escala", label: "Escala", icon: "📊" },
   { id: "calendario", label: "Calendário", icon: "📅" },
@@ -79,6 +80,13 @@ function formatarTempoRestante(prazo, agora = new Date()) {
     texto: `${vencido ? "Vencido há" : "Falta"} ${partes.join(" ")}`,
     classe: vencido ? "vencido" : diff < 30 * 60 * 1000 ? "alerta-prazo" : "ok-prazo",
   };
+}
+
+function saudacaoPorHora() {
+  const hora = new Date().getHours();
+  if (hora >= 5 && hora < 12) return "Bom dia";
+  if (hora >= 12 && hora < 18) return "Boa tarde";
+  return "Boa noite";
 }
 
 function getLocal(key, fallback) {
@@ -218,6 +226,68 @@ function useTabela(nomeTabela, usuario) {
   return { dados, carregando, adicionar, atualizar, remover, recarregar: carregar };
 }
 
+function useConfigCompartilhada(usuario) {
+  const [config, setConfig] = useState(() =>
+    getLocal("configuracoes", { sheetUrl: "" })
+  );
+
+  async function carregar() {
+    if (!usuario) return;
+
+    if (supabaseEnabled && usuario.id) {
+      const { data, error } = await supabase
+        .from("app_config")
+        .select("*")
+        .eq("chave", "sheet_url")
+        .maybeSingle();
+
+      if (!error && data?.valor) {
+        const novo = { sheetUrl: data.valor };
+        setConfig(novo);
+        setLocal("configuracoes", novo);
+      }
+
+      if (error) console.error(error);
+    }
+  }
+
+  async function salvarSheetUrl(sheetUrl) {
+    const novo = { sheetUrl };
+
+    setConfig(novo);
+    setLocal("configuracoes", novo);
+
+    if (supabaseEnabled && usuario?.id) {
+      const { error } = await supabase.from("app_config").upsert(
+        {
+          chave: "sheet_url",
+          valor: sheetUrl,
+          atualizado_por: usuario.id,
+          atualizado_em: new Date().toISOString(),
+        },
+        { onConflict: "chave" }
+      );
+
+      if (error) {
+        alert("Erro ao salvar escala compartilhada: " + error.message);
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  useEffect(() => {
+    carregar();
+  }, [usuario?.id, usuario?.email]);
+
+  return {
+    config,
+    setConfig,
+    salvarSheetUrl,
+    recarregarConfig: carregar,
+  };
+}
 function Login({ onLogin }) {
   const [nome, setNome] = useState("Jerlylan");
   const [email, setEmail] = useState("admin@teste.com");
@@ -367,7 +437,7 @@ function Card({ titulo, valor, descricao }) {
   );
 }
 
-function Inicio({ usuario, anotacoes, frases, links, eventos, registros, osnoc }) {
+function Inicio({ usuario, anotacoes, frases, links, eventos, registros, osnoc, osabertas }) {
   const hoje = new Date();
 
   const eventosHoje = eventos.filter((e) => {
@@ -378,24 +448,37 @@ function Inicio({ usuario, anotacoes, frases, links, eventos, registros, osnoc }
 
   const prazosPendentes = registros.filter((r) => r.status !== "concluido");
   const prazosVencidos = prazosPendentes.filter((r) => r.prazo && new Date(r.prazo) < hoje);
+  const osAbertas = osabertas.filter((o) => o.status !== "concluida");
 
   return (
     <>
       <Header
-        titulo={`Bom dia, ${nomeUsuario(usuario)}!`}
-        subtitulo="Resumo rápido da sua rotina de trabalho."
+        titulo={`${saudacaoPorHora()}, ${nomeUsuario(usuario)}!`}
+        subtitulo="Resumo compartilhado da rotina de trabalho."
         usuario={usuario}
       />
 
       <section className="cards-grid">
         <Card titulo="Eventos cadastrados" valor={eventos.length} descricao={`${eventosHoje.length} evento(s) hoje`} />
         <Card titulo="Prazos pendentes" valor={prazosPendentes.length} descricao={`${prazosVencidos.length} vencido(s)`} />
+        <Card titulo="OS abertas" valor={osAbertas.length} descricao={`${osabertas.length} protocolo(s) registrado(s)`} />
         <Card titulo="Frases prontas" valor={frases.length} descricao="atalhos salvos" />
         <Card titulo="Links importantes" valor={links.length} descricao="links cadastrados" />
         <Card titulo="OS NOC" valor={osnoc.length} descricao="fechamentos salvos" />
       </section>
 
       <section className="grid-2">
+        <div className="panel">
+          <h2>Ordens de serviço abertas</h2>
+          {osAbertas.slice(0, 5).map((o) => (
+            <div className="linha" key={o.id}>
+              <strong>Protocolo: {o.protocolo}</strong>
+              <span>{o.descricao || "Sem descrição"} • {o.status}</span>
+            </div>
+          ))}
+          {!osAbertas.length && <p className="empty">Nenhuma OS aberta.</p>}
+        </div>
+
         <div className="panel">
           <h2>Próximos prazos</h2>
           {prazosPendentes.slice(0, 5).map((r) => (
@@ -480,7 +563,7 @@ function Anotacoes({ store }) {
 
   return (
     <>
-      <Header titulo="Anotações" subtitulo="Guarde comentários e informações importantes." />
+      <Header titulo="Anotações compartilhadas" subtitulo="Tudo que for salvo aqui aparece para todos os usuários logados." />
 
       <form className="panel form-grid" onSubmit={salvar}>
         <input placeholder="Título" value={form.titulo} onChange={(e) => setForm({ ...form, titulo: e.target.value })} />
@@ -790,6 +873,88 @@ function OSNOC({ store }) {
         ))}
 
         {!store.dados.length && <div className="panel empty big">Nenhuma OS NOC salva ainda.</div>}
+      </div>
+    </>
+  );
+}
+
+function OSAbertas({ store }) {
+  const [form, setForm] = useState({ protocolo: "", descricao: "", status: "aberta" });
+  const [editandoId, setEditandoId] = useState(null);
+  const abertas = store.dados.filter((o) => o.status !== "concluida");
+
+  function limpar() {
+    setForm({ protocolo: "", descricao: "", status: "aberta" });
+    setEditandoId(null);
+  }
+
+  function salvar(e) {
+    e.preventDefault();
+    if (!form.protocolo.trim()) return alert("Digite o protocolo da ordem de serviço.");
+
+    const item = {
+      protocolo: form.protocolo.trim(),
+      descricao: form.descricao.trim(),
+      status: form.status,
+    };
+
+    if (editandoId) store.atualizar(editandoId, item);
+    else store.adicionar(item);
+
+    limpar();
+  }
+
+  function editar(item) {
+    setEditandoId(item.id);
+    setForm({ protocolo: item.protocolo || "", descricao: item.descricao || "", status: item.status || "aberta" });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  return (
+    <>
+      <Header titulo="OS abertas" subtitulo="Registre a quantidade de ordens de serviço abertas e seus protocolos." />
+
+      <section className="cards-grid">
+        <Card titulo="OS abertas" valor={abertas.length} descricao="status aberta/em andamento" />
+        <Card titulo="Total registrado" valor={store.dados.length} descricao="todos os protocolos" />
+      </section>
+
+      <form className="panel form-grid" onSubmit={salvar}>
+        <h2>{editandoId ? "Editar protocolo" : "Novo protocolo"}</h2>
+        <label>Protocolo</label>
+        <input placeholder="Digite o protocolo da OS" value={form.protocolo} onChange={(e) => setForm({ ...form, protocolo: e.target.value })} />
+        <label>Descrição, opcional</label>
+        <textarea placeholder="Observação sobre a OS..." value={form.descricao} onChange={(e) => setForm({ ...form, descricao: e.target.value })} />
+        <label>Status</label>
+        <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+          <option value="aberta">Aberta</option>
+          <option value="em andamento">Em andamento</option>
+          <option value="concluida">Concluída</option>
+        </select>
+        <div className="botoes esquerda">
+          <button className="btn primary">{editandoId ? "Salvar edição" : "Salvar protocolo"}</button>
+          {editandoId && <button type="button" className="btn" onClick={limpar}>Cancelar</button>}
+        </div>
+      </form>
+
+      <div className="lista">
+        {store.dados.map((item) => (
+          <div className="panel item" key={item.id}>
+            <div>
+              <h3>Protocolo: {item.protocolo}</h3>
+              <p>{item.descricao || "Sem descrição"}</p>
+              <small>Status: {item.status} • {formatarData(item.criado_em)}</small>
+            </div>
+            <div className="botoes">
+              {item.status !== "concluida" && (
+                <button className="btn" onClick={() => store.atualizar(item.id, { status: "concluida" })}>Concluir</button>
+              )}
+              <button className="btn" onClick={() => editar(item)}>Editar</button>
+              <button className="btn danger" onClick={() => store.remover(item.id)}>Excluir</button>
+            </div>
+          </div>
+        ))}
+        {!store.dados.length && <div className="panel empty big">Nenhuma OS aberta registrada.</div>}
       </div>
     </>
   );
@@ -1141,33 +1306,35 @@ function Timer({ registros }) {
   );
 }
 
-function Configuracoes({ config, setConfig }) {
+function Configuracoes({ config, salvarSheetUrl }) {
   const [valor, setValor] = useState(config.sheetUrl || "");
 
-  function salvar(e) {
+  useEffect(() => {
+    setValor(config.sheetUrl || "");
+  }, [config.sheetUrl]);
+
+  async function salvar(e) {
     e.preventDefault();
     const sheetUrl = extrairSrcIframe(valor);
-    const novo = { ...config, sheetUrl };
-    setConfig(novo);
-    setLocal("configuracoes", novo);
-    alert("Configurações salvas!");
+    const ok = await salvarSheetUrl(sheetUrl);
+    if (ok) alert("Escala compartilhada salva! Todos os usuários verão essa escala.");
   }
 
   return (
     <>
-      <Header titulo="Configurações" subtitulo="Ajustes simples do painel." />
+      <Header titulo="Configurações" subtitulo="Ajustes compartilhados do painel." />
 
       <form className="panel form-grid" onSubmit={salvar}>
-        <h2>Google Sheets</h2>
+        <h2>Google Sheets compartilhado</h2>
         <p className="hint">
-          Cole aqui o link da planilha publicada ou o código iframe completo.
+          Cole aqui o link da planilha publicada ou o código iframe completo. Essa escala aparecerá para todos os usuários.
         </p>
         <textarea
           placeholder='<iframe src="https://docs.google.com/spreadsheets/..."></iframe>'
           value={valor}
           onChange={(e) => setValor(e.target.value)}
         />
-        <button className="btn primary">Salvar escala</button>
+        <button className="btn primary">Salvar escala para todos</button>
       </form>
 
       <div className="panel">
@@ -1188,8 +1355,6 @@ function Configuracoes({ config, setConfig }) {
 export default function App() {
   const [pagina, setPagina] = useState("inicio");
   const [usuario, setUsuario] = useState(null);
-  const [config, setConfig] = useState(() => getLocal("configuracoes", { sheetUrl: "" }));
-
   useEffect(() => {
     async function iniciar() {
       if (supabaseEnabled) {
@@ -1209,10 +1374,12 @@ export default function App() {
     iniciar();
   }, []);
 
+  const configStore = useConfigCompartilhada(usuario);
   const anotacoes = useTabela("anotacoes", usuario);
   const frases = useTabela("mensagens_rapidas", usuario);
   const links = useTabela("links_importantes", usuario);
   const osnoc = useTabela("os_noc", usuario);
+  const osabertas = useTabela("ordens_servico", usuario);
   const eventos = useTabela("eventos", usuario);
   const registros = useTabela("registros", usuario);
 
@@ -1233,20 +1400,22 @@ export default function App() {
           eventos={eventos.dados}
           registros={registros.dados}
           osnoc={osnoc.dados}
+          osabertas={osabertas.dados}
         />
       );
     }
     if (pagina === "anotacoes") return <Anotacoes store={anotacoes} />;
     if (pagina === "frases") return <FrasesProntas store={frases} />;
     if (pagina === "osnoc") return <OSNOC store={osnoc} />;
+    if (pagina === "osabertas") return <OSAbertas store={osabertas} />;
     if (pagina === "links") return <LinksImportantes store={links} />;
-    if (pagina === "escala") return <Escala config={config} />;
+    if (pagina === "escala") return <Escala config={configStore.config} />;
     if (pagina === "calendario") return <Calendario store={eventos} />;
     if (pagina === "eventos") return <Eventos store={registros} />;
     if (pagina === "timer") return <Timer registros={registros.dados} />;
-    if (pagina === "config") return <Configuracoes config={config} setConfig={setConfig} />;
+    if (pagina === "config") return <Configuracoes config={configStore.config} salvarSheetUrl={configStore.salvarSheetUrl} />;
     return null;
-  }, [pagina, usuario, anotacoes.dados, frases.dados, links.dados, osnoc.dados, eventos.dados, registros.dados, config]);
+  }, [pagina, usuario, anotacoes.dados, frases.dados, links.dados, osnoc.dados, osabertas.dados, eventos.dados, registros.dados, configStore.config]);
 
   if (!usuario) return <Login onLogin={setUsuario} />;
 
