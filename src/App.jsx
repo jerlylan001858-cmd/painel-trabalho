@@ -8,6 +8,7 @@ const menuItems = [
   { id: "inicio", label: "Início", icon: "🏠" },
   { id: "anotacoes", label: "Anotações", icon: "📝" },
   { id: "frases", label: "Frases prontas", icon: "⚡" },
+  { id: "osnoc", label: "OS NOC", icon: "🧾" },
   { id: "links", label: "Links importantes", icon: "🔗" },
   { id: "escala", label: "Escala", icon: "📊" },
   { id: "calendario", label: "Calendário", icon: "📅" },
@@ -16,8 +17,25 @@ const menuItems = [
   { id: "config", label: "Configurações", icon: "⚙️" },
 ];
 
+function pad(numero) {
+  return String(numero).padStart(2, "0");
+}
+
+function dataLocalParaInput(data = new Date()) {
+  const d = data instanceof Date ? data : new Date(data);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 function hojeInput() {
-  return new Date().toISOString().slice(0, 16);
+  return dataLocalParaInput(new Date());
+}
+
+function inputParaISO(valor) {
+  if (!valor) return null;
+  const data = new Date(valor);
+  if (Number.isNaN(data.getTime())) return null;
+  return data.toISOString();
 }
 
 function criarId() {
@@ -26,7 +44,41 @@ function criarId() {
 
 function formatarData(data) {
   if (!data) return "Sem data";
-  return new Date(data).toLocaleString("pt-BR");
+  const d = new Date(data);
+  if (Number.isNaN(d.getTime())) return "Data inválida";
+  return d.toLocaleString("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
+}
+
+function formatarTempoRestante(prazo, agora = new Date()) {
+  if (!prazo) return { texto: "Sem prazo", classe: "" };
+
+  const dataPrazo = new Date(prazo);
+  if (Number.isNaN(dataPrazo.getTime())) {
+    return { texto: "Prazo inválido", classe: "vencido" };
+  }
+
+  const diff = dataPrazo.getTime() - agora.getTime();
+  const vencido = diff < 0;
+  const abs = Math.abs(diff);
+
+  const dias = Math.floor(abs / 1000 / 60 / 60 / 24);
+  const horas = Math.floor((abs / 1000 / 60 / 60) % 24);
+  const minutos = Math.floor((abs / 1000 / 60) % 60);
+  const segundos = Math.floor((abs / 1000) % 60);
+
+  const partes = [];
+  if (dias > 0) partes.push(`${dias}d`);
+  partes.push(`${horas}h`);
+  partes.push(`${minutos}min`);
+  partes.push(`${segundos}s`);
+
+  return {
+    texto: `${vencido ? "Vencido há" : "Falta"} ${partes.join(" ")}`,
+    classe: vencido ? "vencido" : diff < 30 * 60 * 1000 ? "alerta-prazo" : "ok-prazo",
+  };
 }
 
 function getLocal(key, fallback) {
@@ -62,6 +114,22 @@ function normalizarComando(valor) {
   const limpo = String(valor || "").trim().toLowerCase();
   if (!limpo) return "";
   return limpo.startsWith("/") ? limpo : "/" + limpo;
+}
+
+function gerarTextoFechamentoOS({ matricula, nome_completo, feito }) {
+  const linhas = [
+    "OS finalizada pelo NOC.",
+    "",
+    `Matrícula: ${matricula || "Não informada"}`,
+    `Nome completo: ${nome_completo || "Não informado"}`,
+    "",
+    "Procedimento realizado:",
+    feito || "Não informado",
+    "",
+    "Ordem de serviço concluída conforme procedimento realizado.",
+  ];
+
+  return linhas.join("\n");
 }
 
 function useTabela(nomeTabela, usuario) {
@@ -299,7 +367,7 @@ function Card({ titulo, valor, descricao }) {
   );
 }
 
-function Inicio({ usuario, anotacoes, frases, links, eventos, registros }) {
+function Inicio({ usuario, anotacoes, frases, links, eventos, registros, osnoc }) {
   const hoje = new Date();
 
   const eventosHoje = eventos.filter((e) => {
@@ -324,6 +392,7 @@ function Inicio({ usuario, anotacoes, frases, links, eventos, registros }) {
         <Card titulo="Prazos pendentes" valor={prazosPendentes.length} descricao={`${prazosVencidos.length} vencido(s)`} />
         <Card titulo="Frases prontas" valor={frases.length} descricao="atalhos salvos" />
         <Card titulo="Links importantes" valor={links.length} descricao="links cadastrados" />
+        <Card titulo="OS NOC" valor={osnoc.length} descricao="fechamentos salvos" />
       </section>
 
       <section className="grid-2">
@@ -586,6 +655,146 @@ function FrasesProntas({ store }) {
   );
 }
 
+
+function OSNOC({ store }) {
+  const [form, setForm] = useState({
+    matricula: "",
+    nome_completo: "",
+    feito: "",
+    texto_fechamento: "",
+  });
+  const [editandoId, setEditandoId] = useState(null);
+
+  const textoGerado = gerarTextoFechamentoOS(form);
+
+  function limpar() {
+    setForm({ matricula: "", nome_completo: "", feito: "", texto_fechamento: "" });
+    setEditandoId(null);
+  }
+
+  function salvar(e) {
+    e.preventDefault();
+
+    if (!form.matricula.trim() || !form.nome_completo.trim() || !form.feito.trim()) {
+      return alert("Preencha matrícula, nome completo e o que foi feito.");
+    }
+
+    const item = {
+      matricula: form.matricula.trim(),
+      nome_completo: form.nome_completo.trim(),
+      feito: form.feito.trim(),
+      texto_fechamento: form.texto_fechamento?.trim() || textoGerado,
+    };
+
+    if (editandoId) {
+      store.atualizar(editandoId, item);
+    } else {
+      store.adicionar(item);
+    }
+
+    limpar();
+  }
+
+  function editar(item) {
+    setEditandoId(item.id);
+    setForm({
+      matricula: item.matricula || "",
+      nome_completo: item.nome_completo || "",
+      feito: item.feito || "",
+      texto_fechamento: item.texto_fechamento || "",
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function copiar(texto) {
+    await navigator.clipboard.writeText(texto);
+    alert("Texto copiado!");
+  }
+
+  return (
+    <>
+      <Header
+        titulo="OS NOC"
+        subtitulo="Monte, salve e copie textos de fechamento de ordem de serviço."
+      />
+
+      <section className="grid-2">
+        <form className="panel form-grid" onSubmit={salvar}>
+          <h2>{editandoId ? "Editar fechamento" : "Novo fechamento"}</h2>
+
+          <label>Matrícula</label>
+          <input
+            placeholder="Exemplo: 12345"
+            value={form.matricula}
+            onChange={(e) => setForm({ ...form, matricula: e.target.value })}
+          />
+
+          <label>Nome completo</label>
+          <input
+            placeholder="Nome completo do responsável"
+            value={form.nome_completo}
+            onChange={(e) => setForm({ ...form, nome_completo: e.target.value })}
+          />
+
+          <label>O que foi feito na ordem de serviço</label>
+          <textarea
+            placeholder="Descreva o procedimento realizado..."
+            value={form.feito}
+            onChange={(e) => setForm({ ...form, feito: e.target.value })}
+          />
+
+          <label>Texto de fechamento personalizado, opcional</label>
+          <textarea
+            placeholder="Se deixar vazio, o sistema gera automaticamente."
+            value={form.texto_fechamento}
+            onChange={(e) => setForm({ ...form, texto_fechamento: e.target.value })}
+          />
+
+          <div className="botoes esquerda">
+            <button className="btn primary">{editandoId ? "Salvar edição" : "Salvar OS NOC"}</button>
+            {editandoId && <button type="button" className="btn" onClick={limpar}>Cancelar</button>}
+          </div>
+        </form>
+
+        <div className="panel form-grid">
+          <h2>Prévia do texto</h2>
+          <pre className="preview-texto">{form.texto_fechamento || textoGerado}</pre>
+          <button
+            className="btn primary"
+            type="button"
+            onClick={() => copiar(form.texto_fechamento || textoGerado)}
+          >
+            Copiar texto
+          </button>
+        </div>
+      </section>
+
+      <div className="lista">
+        {store.dados.map((item) => (
+          <div className="panel item" key={item.id}>
+            <div>
+              <h3>{item.nome_completo}</h3>
+              <p><strong>Matrícula:</strong> {item.matricula}</p>
+              <p>{item.feito}</p>
+              <small>{formatarData(item.criado_em)}</small>
+            </div>
+
+            <div className="botoes">
+              <button className="btn" onClick={() => copiar(item.texto_fechamento || gerarTextoFechamentoOS(item))}>
+                Copiar
+              </button>
+              <button className="btn" onClick={() => editar(item)}>Editar</button>
+              <button className="btn danger" onClick={() => store.remover(item.id)}>Excluir</button>
+            </div>
+          </div>
+        ))}
+
+        {!store.dados.length && <div className="panel empty big">Nenhuma OS NOC salva ainda.</div>}
+      </div>
+    </>
+  );
+}
+
 function LinksImportantes({ store }) {
   const [form, setForm] = useState({ titulo: "", url: "", categoria: "", descricao: "" });
   const [editandoId, setEditandoId] = useState(null);
@@ -713,10 +922,16 @@ function Calendario({ store }) {
     e.preventDefault();
     if (!form.titulo.trim()) return alert("Digite o título do evento.");
 
+    const item = {
+      ...form,
+      data_inicio: inputParaISO(form.data_inicio),
+      data_fim: inputParaISO(form.data_fim),
+    };
+
     if (editandoId) {
-      store.atualizar(editandoId, form);
+      store.atualizar(editandoId, item);
     } else {
-      store.adicionar(form);
+      store.adicionar(item);
     }
 
     limpar();
@@ -727,8 +942,8 @@ function Calendario({ store }) {
     setForm({
       titulo: item.titulo || "",
       descricao: item.descricao || "",
-      data_inicio: item.data_inicio ? String(item.data_inicio).slice(0, 16) : hojeInput(),
-      data_fim: item.data_fim ? String(item.data_fim).slice(0, 16) : "",
+      data_inicio: item.data_inicio ? dataLocalParaInput(item.data_inicio) : hojeInput(),
+      data_fim: item.data_fim ? dataLocalParaInput(item.data_fim) : "",
       lembrete_minutos: item.lembrete_minutos || 30,
       status: item.status || "pendente",
     });
@@ -800,6 +1015,12 @@ function Eventos({ store }) {
     status: "em andamento",
   });
   const [editandoId, setEditandoId] = useState(null);
+  const [agora, setAgora] = useState(new Date());
+
+  useEffect(() => {
+    const intervalo = setInterval(() => setAgora(new Date()), 1000);
+    return () => clearInterval(intervalo);
+  }, []);
 
   function limpar() {
     setForm({ setor: "", titulo: "", descricao: "", prazo: hojeInput(), status: "em andamento" });
@@ -810,10 +1031,15 @@ function Eventos({ store }) {
     e.preventDefault();
     if (!form.titulo.trim()) return alert("Digite o título.");
 
+    const item = {
+      ...form,
+      prazo: inputParaISO(form.prazo),
+    };
+
     if (editandoId) {
-      store.atualizar(editandoId, form);
+      store.atualizar(editandoId, item);
     } else {
-      store.adicionar(form);
+      store.adicionar(item);
     }
 
     limpar();
@@ -825,7 +1051,7 @@ function Eventos({ store }) {
       setor: item.setor || "",
       titulo: item.titulo || "",
       descricao: item.descricao || "",
-      prazo: item.prazo ? String(item.prazo).slice(0, 16) : hojeInput(),
+      prazo: item.prazo ? dataLocalParaInput(item.prazo) : hojeInput(),
       status: item.status || "em andamento",
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -853,24 +1079,30 @@ function Eventos({ store }) {
       </form>
 
       <div className="lista">
-        {store.dados.map((item) => (
-          <div className="panel item" key={item.id}>
-            <div>
-              <h3>{item.titulo}</h3>
-              <p>{item.descricao}</p>
-              <small>{item.setor || "Sem setor"} • Prazo: {formatarData(item.prazo)} • {item.status}</small>
+        {store.dados.map((item) => {
+          const tempo = formatarTempoRestante(item.prazo, agora);
+          return (
+            <div className="panel item" key={item.id}>
+              <div>
+                <h3>{item.titulo}</h3>
+                <p>{item.descricao}</p>
+                <small>{item.setor || "Sem setor"} • Prazo: {formatarData(item.prazo)} • {item.status}</small>
+                {item.status !== "concluido" && (
+                  <div className={`contador-inline ${tempo.classe}`}>⏱ {tempo.texto}</div>
+                )}
+              </div>
+              <div className="botoes">
+                {item.status !== "concluido" && (
+                  <button className="btn" onClick={() => store.atualizar(item.id, { status: "concluido" })}>
+                    Concluir
+                  </button>
+                )}
+                <button className="btn" onClick={() => editar(item)}>Editar</button>
+                <button className="btn danger" onClick={() => store.remover(item.id)}>Excluir</button>
+              </div>
             </div>
-            <div className="botoes">
-              {item.status !== "concluido" && (
-                <button className="btn" onClick={() => store.atualizar(item.id, { status: "concluido" })}>
-                  Concluir
-                </button>
-              )}
-              <button className="btn" onClick={() => editar(item)}>Editar</button>
-              <button className="btn danger" onClick={() => store.remover(item.id)}>Excluir</button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </>
   );
@@ -884,22 +1116,6 @@ function Timer({ registros }) {
     return () => clearInterval(t);
   }, []);
 
-  function calcular(prazo) {
-    if (!prazo) return { texto: "Sem prazo", classe: "" };
-
-    const diff = new Date(prazo) - agora;
-    const vencido = diff < 0;
-    const abs = Math.abs(diff);
-    const h = Math.floor(abs / 1000 / 60 / 60);
-    const m = Math.floor((abs / 1000 / 60) % 60);
-    const s = Math.floor((abs / 1000) % 60);
-
-    return {
-      texto: `${vencido ? "Vencido há" : "Falta"} ${h}h ${m}min ${s}s`,
-      classe: vencido ? "vencido" : diff < 30 * 60 * 1000 ? "alerta-prazo" : "ok-prazo",
-    };
-  }
-
   const pendentes = registros.filter((r) => r.status !== "concluido");
 
   return (
@@ -908,7 +1124,7 @@ function Timer({ registros }) {
 
       <div className="lista">
         {pendentes.map((item) => {
-          const tempo = calcular(item.prazo);
+          const tempo = formatarTempoRestante(item.prazo, agora);
           return (
             <div className="panel item timer-item" key={item.id}>
               <div>
@@ -996,6 +1212,7 @@ export default function App() {
   const anotacoes = useTabela("anotacoes", usuario);
   const frases = useTabela("mensagens_rapidas", usuario);
   const links = useTabela("links_importantes", usuario);
+  const osnoc = useTabela("os_noc", usuario);
   const eventos = useTabela("eventos", usuario);
   const registros = useTabela("registros", usuario);
 
@@ -1015,11 +1232,13 @@ export default function App() {
           links={links.dados}
           eventos={eventos.dados}
           registros={registros.dados}
+          osnoc={osnoc.dados}
         />
       );
     }
     if (pagina === "anotacoes") return <Anotacoes store={anotacoes} />;
     if (pagina === "frases") return <FrasesProntas store={frases} />;
+    if (pagina === "osnoc") return <OSNOC store={osnoc} />;
     if (pagina === "links") return <LinksImportantes store={links} />;
     if (pagina === "escala") return <Escala config={config} />;
     if (pagina === "calendario") return <Calendario store={eventos} />;
@@ -1027,7 +1246,7 @@ export default function App() {
     if (pagina === "timer") return <Timer registros={registros.dados} />;
     if (pagina === "config") return <Configuracoes config={config} setConfig={setConfig} />;
     return null;
-  }, [pagina, usuario, anotacoes.dados, frases.dados, links.dados, eventos.dados, registros.dados, config]);
+  }, [pagina, usuario, anotacoes.dados, frases.dados, links.dados, osnoc.dados, eventos.dados, registros.dados, config]);
 
   if (!usuario) return <Login onLogin={setUsuario} />;
 

@@ -480,3 +480,22 @@ select:focus {
     text-align: left;
   }
 }
+
+
+.preview-texto {
+  white-space: pre-wrap;
+  background: #0b1728;
+  color: #eaf2ff;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 14px;
+  padding: 14px;
+  line-height: 1.5;
+  min-height: 220px;
+  overflow: auto;
+}
+
+.contador-inline {
+  margin-top: 10px;
+  font-weight: 800;
+  font-size: 14px;
+}
