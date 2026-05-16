@@ -29,56 +29,6 @@ const avatarOptions = [
   { id: "avatar6", nome: "Gatinho escritório", src: "/avatars/avatar6.jpeg" },
 ];
 
-
-const responsavelAvatarMap = {
-  Hercules: "/avatars/avatar3.jpeg",
-  Franciel: "/avatars/avatar2.jpeg",
-  Matheus: "/avatars/avatar5.jpeg",
-  Luis: "/avatars/avatar4.jpeg",
-};
-
-function avatarResponsavel(nome) {
-  return responsavelAvatarMap[nome] || avatarOptions[0].src;
-}
-
-function contarEvidencias(valor) {
-  if (!valor) return 0;
-  return String(valor)
-    .split(/\n|,|;/)
-    .map((item) => item.trim())
-    .filter(Boolean).length || 1;
-}
-
-function statusPrazo(prazo, status) {
-  if (status === "concluido") return { texto: "Concluído", classe: "success" };
-  if (!prazo) return { texto: "Sem prazo", classe: "neutral" };
-
-  const agora = new Date();
-  const data = new Date(prazo);
-  if (Number.isNaN(data.getTime())) return { texto: "Data inválida", classe: "danger" };
-
-  const diff = data.getTime() - agora.getTime();
-  if (diff < 0) return { texto: "Vencido", classe: "danger" };
-  if (diff < 24 * 60 * 60 * 1000) return { texto: "Hoje", classe: "warning" };
-  return { texto: "Em aberto", classe: "info" };
-}
-
-function conicTicketsPorPessoa(dados) {
-  const cores = ["#0ea5e9", "#14b8a6", "#facc15", "#8b5cf6"];
-  const total = dados.reduce((acc, item) => acc + item.total, 0) || 1;
-  let inicio = 0;
-
-  const partes = dados.map((item, index) => {
-    const tamanho = (item.total / total) * 100;
-    const fim = inicio + tamanho;
-    const parte = `${cores[index]} ${inicio}% ${fim}%`;
-    inicio = fim;
-    return parte;
-  });
-
-  return `conic-gradient(${partes.join(", ")})`;
-}
-
 function avatarUsuario(usuario) {
   return usuario?.user_metadata?.avatar || usuario?.avatar || avatarOptions[0].src;
 }
@@ -440,13 +390,13 @@ function Login({ onLogin }) {
 
 function Layout({ usuario, onLogout, pagina, setPagina, children }) {
   return (
-    <div className="app-shell pro-shell">
-      <aside className="sidebar pro-sidebar">
-        <div className="brand pro-brand">
-          <div className="logo-mark">⌬</div>
+    <div className="app-shell">
+      <aside className="sidebar">
+        <div className="brand">
+          <div className="logo small">PT</div>
           <div>
-            <strong>PAINEL DE TRABALHO</strong>
-            <span>Controle e produtividade</span>
+            <strong>Painel</strong>
+            <span>Trabalho</span>
           </div>
         </div>
 
@@ -457,57 +407,40 @@ function Layout({ usuario, onLogout, pagina, setPagina, children }) {
               className={pagina === item.id ? "active" : ""}
               onClick={() => setPagina(item.id)}
             >
-              <span className="menu-ico">{item.icon}</span>
-              <span className="menu-label">{item.label}</span>
-              {item.id === "tickets" && <span className="menu-new">NOVO</span>}
+              <span>{item.icon}</span>
+              {item.label}
             </button>
           ))}
         </nav>
 
-        <div className="user-box pro-user-box">
+        <div className="user-box">
           <img className="avatar-mini" src={avatarUsuario(usuario)} alt="Avatar do usuário" />
-          <div className="user-box-info">
-            <strong>{nomeUsuario(usuario)}</strong>
-            <small>{usuario?.email}</small>
-          </div>
+          <p>Logado como:</p>
+          <strong>{nomeUsuario(usuario)}</strong>
+          <small>{usuario?.email}</small>
           <button className="btn sair" onClick={onLogout}>Sair</button>
         </div>
       </aside>
 
-      <main className="main-content pro-main">{children}</main>
+      <main className="main-content">{children}</main>
     </div>
   );
 }
 
 function Header({ titulo, subtitulo, usuario }) {
-  const agora = new Date();
-  const dataTexto = agora.toLocaleDateString("pt-BR", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
-
   return (
-    <header className="page-header pro-header">
-      <div className="header-left">
-        <button className="header-icon" type="button">☰</button>
-        <div className="header-sun">☼</div>
-        <div>
-          <h1>{titulo}</h1>
-          <p>{subtitulo || dataTexto}</p>
-        </div>
+    <header className="page-header">
+      <div>
+        <h1>{titulo}</h1>
+        <p>{subtitulo}</p>
       </div>
 
       {usuario && (
-        <div className="header-actions">
-          <div className="notification-dot">🔔<span>3</span></div>
-          <div className="top-user pro-top-user">
-            <img className="avatar-top" src={avatarUsuario(usuario)} alt="Avatar do usuário" />
-            <div>
-              <strong>{nomeUsuario(usuario)}</strong>
-              <span>NOC</span>
-            </div>
+        <div className="top-user">
+          <img className="avatar-top" src={avatarUsuario(usuario)} alt="Avatar do usuário" />
+          <div>
+            <span>Usuário logado</span>
+            <strong>{nomeUsuario(usuario)}</strong>
           </div>
         </div>
       )}
@@ -515,173 +448,131 @@ function Header({ titulo, subtitulo, usuario }) {
   );
 }
 
-function Card({ titulo, valor, descricao, icon = "▣", accent = "#0ea5e9", trend = "↗" }) {
+function Card({ titulo, valor, descricao }) {
   return (
-    <div className="card pro-card" style={{ "--accent": accent }}>
-      <div className="card-icon">{icon}</div>
-      <div>
-        <p>{titulo}</p>
-        <h2>{valor}</h2>
-        <span><b>{trend}</b> {descricao}</span>
-      </div>
+    <div className="card">
+      <p>{titulo}</p>
+      <h2>{valor}</h2>
+      <span>{descricao}</span>
     </div>
   );
 }
 
-function Inicio({ usuario, anotacoes, frases, links, eventos, registros, osnoc, osabertas, tickets, setPagina }) {
+function Inicio({ usuario, anotacoes, frases, links, eventos, registros, osnoc, osabertas, tickets }) {
   const hoje = new Date();
+
+  const eventosHoje = eventos.filter((e) => {
+    if (!e.data_inicio) return false;
+    const d = new Date(e.data_inicio);
+    return d.toDateString() === hoje.toDateString();
+  });
+
   const prazosPendentes = registros.filter((r) => r.status !== "concluido");
+  const prazosVencidos = prazosPendentes.filter((r) => r.prazo && new Date(r.prazo) < hoje);
   const osAbertas = osabertas.filter((o) => o.status !== "concluida");
   const ticketsAbertos = tickets.filter((t) => t.status !== "concluido");
   const ticketsVencidos = ticketsAbertos.filter((t) => t.prazo_informado && new Date(t.prazo_informado) < hoje);
-  const responsaveis = ["Hercules", "Franciel", "Matheus", "Luis"];
-  const ticketsPorPessoa = responsaveis.map((nome) => ({
-    nome,
-    total: ticketsAbertos.filter((t) => t.responsavel === nome).length,
-  }));
-  const totalTicketsPessoa = ticketsPorPessoa.reduce((acc, item) => acc + item.total, 0) || 1;
-
-  const ticketsOrdenados = [...ticketsAbertos].sort((a, b) => new Date(a.prazo_informado || 0) - new Date(b.prazo_informado || 0));
-  const proximosPrazos = ticketsOrdenados.slice(0, 3);
 
   return (
     <>
       <Header
         titulo={`${saudacaoPorHora()}, ${nomeUsuario(usuario)}!`}
-        subtitulo={new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
+        subtitulo="Resumo compartilhado da rotina de trabalho."
         usuario={usuario}
       />
 
-      <section className="cards-grid dashboard-cards">
-        <Card icon="🎫" titulo="Tickets abertos" valor={ticketsAbertos.length} descricao={`${ticketsVencidos.length} vencido(s)`} accent="#2563eb" />
-        <Card icon="🚨" titulo="Tickets vencidos" valor={ticketsVencidos.length} descricao="atenção imediata" accent="#ef4444" trend="↗" />
-        <Card icon="📋" titulo="OS abertas" valor={osAbertas.length} descricao="protocolos ativos" accent="#14b8a6" />
-        <Card icon="⏱" titulo="Prazos pendentes" valor={prazosPendentes.length} descricao="em acompanhamento" accent="#f59e0b" />
+      <section className="cards-grid">
+        <Card titulo="Eventos cadastrados" valor={eventos.length} descricao={`${eventosHoje.length} evento(s) hoje`} />
+        <Card titulo="Prazos pendentes" valor={prazosPendentes.length} descricao={`${prazosVencidos.length} vencido(s)`} />
+        <Card titulo="Tickets em aberto" valor={ticketsAbertos.length} descricao={`${ticketsVencidos.length} vencido(s)`} />
+        <Card titulo="OS abertas" valor={osAbertas.length} descricao={`${osabertas.length} protocolo(s) registrado(s)`} />
+        <Card titulo="Frases prontas" valor={frases.length} descricao="atalhos salvos" />
+        <Card titulo="Links importantes" valor={links.length} descricao="links cadastrados" />
+        <Card titulo="OS NOC" valor={osnoc.length} descricao="fechamentos salvos" />
       </section>
 
-      <section className="dashboard-layout">
-        <div className="dashboard-left">
-          <div className="panel pro-panel tickets-panel-home">
-            <div className="panel-title-row">
-              <div>
-                <h2>🎫 Tickets em destaque</h2>
-                <p>Acompanhe os tickets mais importantes em aberto.</p>
-              </div>
-              <button className="link-button" type="button" onClick={() => setPagina("tickets")}>Ver todos os tickets →</button>
-            </div>
-
-            <div className="ticket-table">
-              <div className="ticket-table-head">
-                <span>Empresa</span>
-                <span>Direcionado para</span>
-                <span>Tratativa</span>
-                <span>Evidências</span>
-                <span>Prazo informado</span>
-                <span>Status</span>
-              </div>
-
-              {ticketsOrdenados.slice(0, 7).map((ticket) => {
-                const status = statusPrazo(ticket.prazo_informado, ticket.status);
-                return (
-                  <div className="ticket-table-row" key={ticket.id}>
-                    <strong>{ticket.empresa}</strong>
-                    <span className="responsavel-cell">
-                      <img src={avatarResponsavel(ticket.responsavel)} alt={ticket.responsavel} />
-                      {ticket.responsavel}
-                    </span>
-                    <span>{ticket.tratativa}</span>
-                    <span>📎 {contarEvidencias(ticket.evidencias)}</span>
-                    <span className="prazo-cell">{formatarData(ticket.prazo_informado)}</span>
-                    <span className={`status-pill ${status.classe}`}>{status.texto}</span>
-                  </div>
-                );
-              })}
-
-              {!ticketsOrdenados.length && <div className="empty-table">Nenhum ticket aberto no momento.</div>}
-            </div>
+      <section className="panel destaque-inicial">
+        <div className="destaque-head">
+          <div>
+            <h2>Tickets em destaque</h2>
+            <p>Tickets cadastrados aparecem aqui para todos acompanharem.</p>
           </div>
-
-          <div className="dashboard-bottom-grid">
-            <div className="panel pro-panel chart-card">
-              <div className="panel-title-row compact">
-                <h2>📊 Tickets por responsável</h2>
-                <span>{ticketsAbertos.length} total</span>
-              </div>
-              <div className="chart-wrap">
-                <div className="donut" style={{ background: conicTicketsPorPessoa(ticketsPorPessoa) }}>
-                  <div><strong>{ticketsAbertos.length}</strong><span>Total</span></div>
-                </div>
-                <div className="chart-legend">
-                  {ticketsPorPessoa.map((pessoa, index) => {
-                    const cores = ["#0ea5e9", "#14b8a6", "#facc15", "#8b5cf6"];
-                    const pct = Math.round((pessoa.total / totalTicketsPessoa) * 100);
-                    return (
-                      <div className="legend-row" key={pessoa.nome}>
-                        <i style={{ background: cores[index] }} />
-                        <span>{pessoa.nome}</span>
-                        <strong>{pessoa.total} ({pct}%)</strong>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            <div className="panel pro-panel next-deadlines">
-              <div className="panel-title-row compact">
-                <h2>🗓 Próximos prazos</h2>
-                <button className="link-button" type="button" onClick={() => setPagina("tickets")}>Ver todos →</button>
-              </div>
-              {proximosPrazos.map((ticket) => {
-                const status = statusPrazo(ticket.prazo_informado, ticket.status);
-                return (
-                  <div className="deadline-row" key={ticket.id}>
-                    <div className={`date-box ${status.classe}`}>
-                      <strong>{new Date(ticket.prazo_informado).toLocaleDateString("pt-BR", { day: "2-digit" })}</strong>
-                      <span>{new Date(ticket.prazo_informado).toLocaleDateString("pt-BR", { month: "short" })}</span>
-                    </div>
-                    <div>
-                      <strong>{ticket.empresa}</strong>
-                      <span>{ticket.tratativa}</span>
-                    </div>
-                    <em className={`status-pill ${status.classe}`}>{status.texto}</em>
-                  </div>
-                );
-              })}
-              {!proximosPrazos.length && <p className="empty">Nenhum prazo de ticket pendente.</p>}
-            </div>
-
-            <div className="panel pro-panel mini-calendar-card">
-              <div className="panel-title-row compact">
-                <button className="calendar-arrow" type="button">‹</button>
-                <h2>{hoje.toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}</h2>
-                <button className="calendar-arrow" type="button">›</button>
-              </div>
-              <div className="mini-calendar">
-                {["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"].map((d) => <span key={d}>{d}</span>)}
-                {Array.from({ length: 31 }, (_, i) => i + 1).map((dia) => (
-                  <button key={dia} className={dia === hoje.getDate() ? "today" : dia % 7 === 0 ? "has-event" : ""} type="button">{dia}</button>
-                ))}
-              </div>
-            </div>
-          </div>
+          <strong>{ticketsAbertos.length} aberto(s)</strong>
         </div>
 
-        <aside className="dashboard-right">
-          <div className="panel pro-panel quick-ticket-card">
-            <h2>⚡ Novo ticket</h2>
-            <p>Cadastre empresa, responsável, tratativa, evidências e prazo informado.</p>
-            <button className="btn primary wide" type="button" onClick={() => setPagina("tickets")}>Abrir cadastro de ticket</button>
-          </div>
+        <div className="ticket-destaque-grid">
+          {ticketsAbertos.slice(0, 6).map((ticket) => {
+            const tempo = formatarTempoRestante(ticket.prazo_informado, hoje);
+            return (
+              <div className={`ticket-destaque ${tempo.classe}`} key={ticket.id}>
+                <strong>{ticket.empresa}</strong>
+                <span>Direcionado: {ticket.responsavel}</span>
+                <span>{ticket.tratativa}</span>
+                <small>Prazo: {formatarData(ticket.prazo_informado)} • {tempo.texto}</small>
+              </div>
+            );
+          })}
+          {!ticketsAbertos.length && <p className="empty">Nenhum ticket aberto.</p>}
+        </div>
+      </section>
 
-          <div className="panel pro-panel quick-list">
-            <h2>Resumo rápido</h2>
-            <div className="quick-row"><span>Anotações</span><strong>{anotacoes.length}</strong></div>
-            <div className="quick-row"><span>Frases prontas</span><strong>{frases.length}</strong></div>
-            <div className="quick-row"><span>Links</span><strong>{links.length}</strong></div>
-            <div className="quick-row"><span>OS NOC</span><strong>{osnoc.length}</strong></div>
-          </div>
-        </aside>
+      <section className="grid-2">
+        <div className="panel">
+          <h2>Ordens de serviço abertas</h2>
+          {osAbertas.slice(0, 5).map((o) => (
+            <div className="linha" key={o.id}>
+              <strong>Protocolo: {o.protocolo}</strong>
+              <span>{o.descricao || "Sem descrição"} • {o.status}</span>
+            </div>
+          ))}
+          {!osAbertas.length && <p className="empty">Nenhuma OS aberta.</p>}
+        </div>
+
+        <div className="panel">
+          <h2>Próximos prazos</h2>
+          {prazosPendentes.slice(0, 5).map((r) => (
+            <div className="linha" key={r.id}>
+              <strong>{r.titulo}</strong>
+              <span>{r.setor || "Sem setor"} • {formatarData(r.prazo)} • {r.status}</span>
+            </div>
+          ))}
+          {!prazosPendentes.length && <p className="empty">Nenhum prazo pendente.</p>}
+        </div>
+
+        <div className="panel">
+          <h2>Próximos eventos</h2>
+          {eventos.slice(0, 5).map((e) => (
+            <div className="linha" key={e.id}>
+              <strong>{e.titulo}</strong>
+              <span>{formatarData(e.data_inicio)}</span>
+            </div>
+          ))}
+          {!eventos.length && <p className="empty">Nenhum evento cadastrado.</p>}
+        </div>
+      </section>
+
+      <section className="grid-2">
+        <div className="panel">
+          <h2>Últimas anotações</h2>
+          {anotacoes.slice(0, 4).map((a) => (
+            <div className="linha" key={a.id}>
+              <strong>{a.titulo}</strong>
+              <span>{a.categoria || "Sem categoria"} • {formatarData(a.criado_em)}</span>
+            </div>
+          ))}
+          {!anotacoes.length && <p className="empty">Nenhuma anotação ainda.</p>}
+        </div>
+
+        <div className="panel">
+          <h2>Atalhos rápidos</h2>
+          {frases.slice(0, 4).map((f) => (
+            <div className="linha" key={f.id}>
+              <strong>{f.comando || "Sem comando"}</strong>
+              <span>{f.titulo}</span>
+            </div>
+          ))}
+          {!frases.length && <p className="empty">Nenhuma frase pronta ainda.</p>}
+        </div>
       </section>
     </>
   );
@@ -1056,12 +947,10 @@ function Tickets({ store }) {
   }, []);
 
   const ticketsAbertos = store.dados.filter((t) => t.status !== "concluido");
-  const ticketsVencidos = ticketsAbertos.filter((t) => t.prazo_informado && new Date(t.prazo_informado) < agora);
   const ticketsPorPessoa = responsaveis.map((nome) => ({
     nome,
     total: ticketsAbertos.filter((t) => t.responsavel === nome).length,
   }));
-  const totalTicketsPessoa = ticketsPorPessoa.reduce((acc, item) => acc + item.total, 0) || 1;
 
   function limpar() {
     setForm({
@@ -1112,124 +1001,91 @@ function Tickets({ store }) {
 
   return (
     <>
-      <Header titulo="Tickets" subtitulo="Gestão profissional de tickets por empresa, responsável, evidências e prazo." />
+      <Header titulo="Tickets" subtitulo="Registre tickets por empresa, responsável, tratativa, evidências e prazo informado." />
 
-      <section className="cards-grid dashboard-cards">
-        <Card icon="🎫" titulo="Tickets abertos" valor={ticketsAbertos.length} descricao="em atendimento" accent="#2563eb" />
-        <Card icon="🚨" titulo="Tickets vencidos" valor={ticketsVencidos.length} descricao="fora do prazo" accent="#ef4444" />
-        {ticketsPorPessoa.slice(0, 2).map((pessoa, index) => (
-          <Card key={pessoa.nome} icon={index === 0 ? "👤" : "👥"} titulo={pessoa.nome} valor={pessoa.total} descricao="ticket(s) aberto(s)" accent={index === 0 ? "#14b8a6" : "#f59e0b"} />
+      <section className="cards-grid">
+        <Card titulo="Tickets abertos" valor={ticketsAbertos.length} descricao="em atendimento" />
+        {ticketsPorPessoa.map((pessoa) => (
+          <Card key={pessoa.nome} titulo={pessoa.nome} valor={pessoa.total} descricao="ticket(s) aberto(s)" />
         ))}
       </section>
 
-      <section className="tickets-workspace">
-        <div className="panel pro-panel tickets-main-table">
-          <div className="panel-title-row">
-            <div>
-              <h2>🎫 Tickets em destaque</h2>
-              <p>Lista organizada com empresa, responsável, tratativa, evidências e prazo.</p>
-            </div>
-            <strong>{ticketsAbertos.length} aberto(s)</strong>
-          </div>
+      <form className="panel form-grid" onSubmit={salvar}>
+        <h2>{editandoId ? "Editar ticket" : "Novo ticket"}</h2>
 
-          <div className="ticket-table full">
-            <div className="ticket-table-head">
-              <span>Empresa</span>
-              <span>Direcionado para</span>
-              <span>Tratativa</span>
-              <span>Evidências</span>
-              <span>Prazo informado</span>
-              <span>Status</span>
-              <span>Ações</span>
-            </div>
+        <label>Empresa</label>
+        <input
+          placeholder="Nome da empresa"
+          value={form.empresa}
+          onChange={(e) => setForm({ ...form, empresa: e.target.value })}
+        />
 
-            {store.dados.map((ticket) => {
-              const tempo = formatarTempoRestante(ticket.prazo_informado, agora);
-              const status = statusPrazo(ticket.prazo_informado, ticket.status);
-              return (
-                <div className="ticket-table-row action-row" key={ticket.id}>
-                  <strong>{ticket.empresa}</strong>
-                  <span className="responsavel-cell">
-                    <img src={avatarResponsavel(ticket.responsavel)} alt={ticket.responsavel} />
-                    {ticket.responsavel}
-                  </span>
-                  <span>{ticket.tratativa}</span>
-                  <span className="evidence-cell" title={ticket.evidencias}>📎 {contarEvidencias(ticket.evidencias)}</span>
-                  <span className="prazo-cell">{formatarData(ticket.prazo_informado)}</span>
-                  <span>
-                    <em className={`status-pill ${status.classe}`}>{ticket.status === "concluido" ? "Concluído" : status.texto}</em>
-                    {ticket.status !== "concluido" && <small className={`tempo-mini ${tempo.classe}`}>{tempo.texto}</small>}
-                  </span>
-                  <span className="table-actions">
-                    {ticket.status !== "concluido" && <button className="mini-btn" onClick={() => store.atualizar(ticket.id, { status: "concluido" })}>Concluir</button>}
-                    <button className="mini-btn" onClick={() => editar(ticket)}>Editar</button>
-                    <button className="mini-btn danger" onClick={() => store.remover(ticket.id)}>Excluir</button>
-                  </span>
-                </div>
-              );
-            })}
+        <label>Direcionar para</label>
+        <select value={form.responsavel} onChange={(e) => setForm({ ...form, responsavel: e.target.value })}>
+          {responsaveis.map((nome) => <option key={nome} value={nome}>{nome}</option>)}
+        </select>
 
-            {!store.dados.length && <div className="empty-table">Nenhum ticket cadastrado ainda.</div>}
-          </div>
+        <label>Tratativa</label>
+        <textarea
+          placeholder="Descreva a tratativa do ticket"
+          value={form.tratativa}
+          onChange={(e) => setForm({ ...form, tratativa: e.target.value })}
+        />
+
+        <label>Evidências</label>
+        <textarea
+          placeholder="Cole prints, links, observações ou evidências"
+          value={form.evidencias}
+          onChange={(e) => setForm({ ...form, evidencias: e.target.value })}
+        />
+
+        <label>Prazo informado</label>
+        <input
+          type="datetime-local"
+          value={form.prazo_informado}
+          onChange={(e) => setForm({ ...form, prazo_informado: e.target.value })}
+        />
+
+        <label>Status</label>
+        <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+          <option value="aberto">Aberto</option>
+          <option value="em andamento">Em andamento</option>
+          <option value="concluido">Concluído</option>
+        </select>
+
+        <div className="botoes esquerda">
+          <button className="btn primary">{editandoId ? "Salvar edição" : "Adicionar ticket"}</button>
+          {editandoId && <button type="button" className="btn" onClick={limpar}>Cancelar</button>}
         </div>
+      </form>
 
-        <aside className="tickets-side">
-          <form className="panel pro-panel ticket-form-card" onSubmit={salvar}>
-            <h2>{editandoId ? "Editar ticket" : "Novo ticket"}</h2>
-
-            <label>Empresa</label>
-            <input placeholder="Selecione ou digite a empresa" value={form.empresa} onChange={(e) => setForm({ ...form, empresa: e.target.value })} />
-
-            <label>Direcionado para</label>
-            <select value={form.responsavel} onChange={(e) => setForm({ ...form, responsavel: e.target.value })}>
-              {responsaveis.map((nome) => <option key={nome} value={nome}>{nome}</option>)}
-            </select>
-
-            <label>Tratativa</label>
-            <textarea placeholder="Descreva a tratativa..." value={form.tratativa} onChange={(e) => setForm({ ...form, tratativa: e.target.value })} />
-
-            <label>Evidências</label>
-            <textarea placeholder="Cole prints, links ou observações..." value={form.evidencias} onChange={(e) => setForm({ ...form, evidencias: e.target.value })} />
-
-            <label>Prazo informado</label>
-            <input type="datetime-local" value={form.prazo_informado} onChange={(e) => setForm({ ...form, prazo_informado: e.target.value })} />
-
-            <label>Status</label>
-            <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-              <option value="aberto">Aberto</option>
-              <option value="em andamento">Em andamento</option>
-              <option value="concluido">Concluído</option>
-            </select>
-
-            <div className="botoes esquerda">
-              <button className="btn primary wide">{editandoId ? "Salvar edição" : "Salvar ticket"}</button>
-              {editandoId && <button type="button" className="btn" onClick={limpar}>Cancelar</button>}
-            </div>
-          </form>
-
-          <div className="panel pro-panel chart-card compact-chart">
-            <h2>Tickets por responsável</h2>
-            <div className="chart-wrap vertical">
-              <div className="donut small" style={{ background: conicTicketsPorPessoa(ticketsPorPessoa) }}>
-                <div><strong>{ticketsAbertos.length}</strong><span>Total</span></div>
+      <div className="lista">
+        {store.dados.map((ticket) => {
+          const tempo = formatarTempoRestante(ticket.prazo_informado, agora);
+          return (
+            <div className={`panel item ticket-item ${ticket.status !== "concluido" ? "ticket-aberto" : ""}`} key={ticket.id}>
+              <div>
+                <h3>{ticket.empresa}</h3>
+                <p><strong>Responsável:</strong> {ticket.responsavel}</p>
+                <p><strong>Tratativa:</strong> {ticket.tratativa}</p>
+                <p><strong>Evidências:</strong> {ticket.evidencias}</p>
+                <small>Prazo: {formatarData(ticket.prazo_informado)} • Status: {ticket.status}</small>
+                {ticket.status !== "concluido" && <div className={`contador-inline ${tempo.classe}`}>⏱ {tempo.texto}</div>}
               </div>
-              <div className="chart-legend full-width">
-                {ticketsPorPessoa.map((pessoa, index) => {
-                  const cores = ["#0ea5e9", "#14b8a6", "#facc15", "#8b5cf6"];
-                  const pct = Math.round((pessoa.total / totalTicketsPessoa) * 100);
-                  return (
-                    <div className="legend-row" key={pessoa.nome}>
-                      <i style={{ background: cores[index] }} />
-                      <span>{pessoa.nome}</span>
-                      <strong>{pessoa.total} ({pct}%)</strong>
-                    </div>
-                  );
-                })}
+
+              <div className="botoes">
+                {ticket.status !== "concluido" && (
+                  <button className="btn" onClick={() => store.atualizar(ticket.id, { status: "concluido" })}>Concluir</button>
+                )}
+                <button className="btn" onClick={() => editar(ticket)}>Editar</button>
+                <button className="btn danger" onClick={() => store.remover(ticket.id)}>Excluir</button>
               </div>
             </div>
-          </div>
-        </aside>
-      </section>
+          );
+        })}
+
+        {!store.dados.length && <div className="panel empty big">Nenhum ticket cadastrado ainda.</div>}
+      </div>
     </>
   );
 }
@@ -1859,7 +1715,6 @@ export default function App() {
           osnoc={osnoc.dados}
           osabertas={osabertas.dados}
           tickets={tickets.dados}
-          setPagina={setPagina}
         />
       );
     }
